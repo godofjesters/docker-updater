@@ -9,6 +9,7 @@ DOCKER_STOP="docker stop"
 DOCKER_RM="docker rm"
 DOCKER_PULL="docker pull"
 
+#CONTAINERS=`docker ps --format "$1"`
 CONTAINERS=`docker ps --format "{{.Names}}"`
 
 for container in $CONTAINERS
@@ -23,10 +24,22 @@ for container in $CONTAINERS
 		logger -s "Docker stopped $container successfully";
 		JSON=`docker container inspect $container`
 
-		BINDS=`echo $JSON | jq -j '.[] | .HostConfig | .Binds[] as $b | "-v \($b) "'`
+		echo $JSON > $container + ".json"
+
+#		BINDS=`echo $JSON | jq -j '.[] | .HostConfig | .Binds[] as $b | "-v \($b) "'`
+
+		if [ `echo $JSON | jq -j '.[] | .Hostconfig | .Binds'` == "null" ]; then
+			BINDS=""
+		else
+			BINDS=`echo $JSON | jq -j '.[] | .HostConfig | .Binds[] as $b | "-v \($b) "'`
+		fi 
+
 		PORTS=`echo $JSON | jq ' .[] | .HostConfig | .PortBindings | keys[] as $k | "\($k):\(.[$k][] | .HostPort )" ' | while read -r line; do python -c $"print('-p ' + $line.replace('/tcp','').split(':')[1] + ':' + $line.replace('/tcp','').split(':')[0])"; done | awk '{print}' ORS=' '`
 		IMAGE=`echo $JSON | jq -r '.[] | .Config | .Image'`
 		ENV=`echo $JSON | jq -j '.[] | .Config | .Env[] as $e | "-e \($e) "'`
+
+#		echo $ENV
+#		continue
 
 		CMD=`$DOCKER_RM $container`
 		# Fail Check
